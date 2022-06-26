@@ -38,13 +38,15 @@ function dataBaseDisconnect() {
 
 
 app.post("/participants", async (req, res) => {
+    
+    dataBaseConnect()
 
     const { name } = req.body
     const validation = userSchema.validate({ name })
     const users = await db.collection("users").find({ name }).toArray();
     const reqTime = dayjs().locale('pt-br').format("HH:mm:ss");
     
-    dataBaseConnect()
+
 
     /* Valida String */
     if ((validation.error) || !(isNaN(parseInt(name)))) {
@@ -89,7 +91,32 @@ app.get("/participants", async (req, res) => {
     res.status(200).send(users)
 })
 
+app.get("/messages", async (req, res) => {
+    
+    dataBaseConnect()
 
+    const limitPrintMessage = parseInt(req.query.limit)
+    const messages = await db.collection("messages").find().toArray()
+
+    if (!(isNaN(limitPrintMessage))) {
+        let printMessages = []
+        const messageNumber = messages.length
+        const printMessagesNumber = messageNumber - limitPrintMessage
+
+        for(let i = messageNumber; i >= printMessagesNumber; i = i - 1 ){
+            printMessages.unshift(messages[i-1]) 
+        }
+
+/* falta conferir se o usuário pode ou não receber essa mensagem */
+
+
+        return res.send(printMessages)
+    }
+
+    res.send(messages)
+
+    dataBaseDisconnect()
+})
 
 app.listen(process.env.SERVER_PORT, () => {
     console.log("Servidor ON")
