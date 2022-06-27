@@ -5,6 +5,7 @@ import dotenv from 'dotenv'
 import joi from 'joi'
 import dayjs from "dayjs";
 import "dayjs/locale/pt-br.js";
+import { text } from 'stream/consumers'
 
 dotenv.config()
 const app = express()
@@ -15,9 +16,23 @@ const dbClient = new MongoClient(process.env.MONGO_URL);
 let db;
 
 /* JOI SCHEMAS */
-const userSchema = joi.object({
+const nameSchema = joi.object({
     name: joi.string().required()
 });
+
+const TextAndToSchema = joi.object({
+    to: joi.string().required(),
+    text: joi.string().required()
+});
+
+const typeSchema = joi.object({
+    type: joi.string().valid('message' || 'private_message').required()
+})
+
+const fromSchema = joi.object({
+    user: joi.string().valid('a', 'b').required()
+})
+
 
 
 function dataBaseConnect() {
@@ -38,14 +53,14 @@ function dataBaseDisconnect() {
 
 
 app.post("/participants", async (req, res) => {
-    
+
     dataBaseConnect()
 
     const { name } = req.body
-    const validation = userSchema.validate({ name })
+    const validation = nameSchema.validate({ name })
     const users = await db.collection("users").find({ name }).toArray();
     const reqTime = dayjs().locale('pt-br').format("HH:mm:ss");
-    
+
 
 
     /* Valida String */
@@ -83,7 +98,7 @@ app.post("/participants", async (req, res) => {
 })
 
 app.get("/participants", async (req, res) => {
-    
+
     dataBaseConnect()
 
     const users = await db.collection("users").find().toArray()
@@ -91,27 +106,73 @@ app.get("/participants", async (req, res) => {
     res.status(200).send(users)
 })
 
+app.post("/messages", async (req, res) => {
+
+    dataBaseConnect()
+
+    const { user } = req.headers
+    const { to, text, type } = req.body
+    const users = await db.collection("users").find().toArray()
+    const validationToText = TextAndToSchema.validate({ to, text })
+    const validationType = typeSchema.validate({ type })
+    const reqTime = dayjs().locale('pt-br').format("HH:mm:ss");
+    const usernameArrays = users.map(user => user.name);
+    const validateFrom = fromSchema.validate({ user });
+
+
+/*      const array = joi.array().items(joi.string().valid("fas"));
+    const validateFrom = await array.validateAsync(usernameArrays); */ 
+
+    if (validationToText.error || validationType.error) {
+        return res.status(422).send()
+    }
+
+    if (validateFrom.error) {
+        console.log(validateFrom.error.details)
+    } 
+
+    try {
+
+        await db.collection("messages").insertOne({
+            from: user,
+            to,
+            text,
+            type,
+            time: reqTime
+        })
+
+        res.status(201).send()
+    } catch {
+        res.sendStatus(500)
+    }
+
+    dataBaseDisconnect()
+
+
+})
+
 app.get("/messages", async (req, res) => {
-    
+
     dataBaseConnect()
 
     const limitPrintMessage = parseInt(req.query.limit)
     const messages = await db.collection("messages").find().toArray()
-    const user = req.headers.user
+    const { user } = req.headers
 
     if (!(isNaN(limitPrintMessage)) && (limitPrintMessage < messages.length) && limitPrintMessage !== 0) {
-        
+
         let printMessages = []
         const messageNumber = messages.length
         const printMessagesNumber = messageNumber - limitPrintMessage
 
-        for (let i = messageNumber; i > printMessagesNumber; i = i - 1){
-            console.log(messages[i - 1].to)
-            if((messages[i-1].to === "Todos") || (messages[i-1].to === user)){
-            printMessages.unshift(messages[i-1]) 
-        }}
+        for (let i = messageNumber; i > printMessagesNumber; i = i - 1) {
 
-/* falta conferir se o usuário pode ou não receber essa mensagem */
+            if ((messages[i - 1].to === "Todos") || (messages[i - 1].to === user)) {
+                printMessages.unshift(messages[i - 1])
+            }
+        }
+
+        /* falta conferir se o usuário pode ou não receber essa mensagem */
 
 
         return res.send(printMessages)
