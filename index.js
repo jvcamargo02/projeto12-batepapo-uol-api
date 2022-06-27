@@ -97,15 +97,19 @@ app.get("/messages", async (req, res) => {
 
     const limitPrintMessage = parseInt(req.query.limit)
     const messages = await db.collection("messages").find().toArray()
+    const user = req.headers.user
 
-    if (!(isNaN(limitPrintMessage))) {
+    if (!(isNaN(limitPrintMessage)) && (limitPrintMessage < messages.length) && limitPrintMessage !== 0) {
+        
         let printMessages = []
         const messageNumber = messages.length
         const printMessagesNumber = messageNumber - limitPrintMessage
 
-        for(let i = messageNumber; i >= printMessagesNumber; i = i - 1 ){
+        for (let i = messageNumber; i > printMessagesNumber; i = i - 1){
+            console.log(messages[i - 1].to)
+            if((messages[i-1].to === "Todos") || (messages[i-1].to === user)){
             printMessages.unshift(messages[i-1]) 
-        }
+        }}
 
 /* falta conferir se o usuário pode ou não receber essa mensagem */
 
