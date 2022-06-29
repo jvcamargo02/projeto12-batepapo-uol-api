@@ -1,6 +1,6 @@
 import express from 'express'
 import cors from 'cors'
-import { MongoClient } from 'mongodb'
+import { MongoClient, ObjectId } from 'mongodb'
 import dotenv from 'dotenv'
 import joi from 'joi'
 import dayjs from "dayjs";
@@ -31,8 +31,6 @@ const typeSchema = joi.object({
 
 
 
-
-
 function dataBaseConnect() {
 
     dbClient.connect()
@@ -49,15 +47,22 @@ async function offUsersRemove() {
     dataBaseConnect()
     const dateNow = Date.now()
     const users = await db.collection("users").find().toArray()
-
-    console.log(users)
+    const reqTime = dayjs().locale('pt-br').format("HH:mm:ss");
 
     users.map(user => {
 
         if ((dateNow - user.lastStatus) > 10000) {
             const userId = user._id;
             const remove = db.collection("users").deleteOne({ _id: userId })
-            return remove
+             const userExitMessage = db.collection("messages").insertOne({
+                from: user.name,
+                to: "Todos",
+                text: "sai da sala...",
+                type: "status",
+                time: reqTime
+            })
+ 
+            return userExitMessage
         }
     })
 }
@@ -218,6 +223,60 @@ app.post("/status", async (req, res) => {
     }
 })
 
+app.delete("/messages/:ID_DA_MENSAGEM", async (req, res) => {
+
+    const { ID_DA_MENSAGEM } = req.params
+    const { user } = req.headers
+    const message = await db.collection("messages").find({ _id: new ObjectId(ID_DA_MENSAGEM) }).toArray()
+
+    if(message[0].from !== user ){
+       return res.sendStatus(401)
+    }
+    if (message.length === 0) {
+      return res.sendStatus(404)
+    }
+    
+     const removeMessage = await db.collection("messages").deleteOne({
+        _id: new ObjectId(ID_DA_MENSAGEM)
+    })
+    
+    res.status(200).send(removeMessage)
+
+})
+
+app.put("/messages/:ID_DA_MENSAGEM", async (req, res) => {
+    
+    const { user } = req.headers
+    const { to, text, type } = req.body
+    const {ID_DA_MENSAGEM} = req.params
+    const users = await db.collection("users").find().toArray()
+    const validationToText = TextAndToSchema.validate({ to, text })
+    const validationType = typeSchema.validate({ type })
+    const reqTime = dayjs().locale('pt-br').format("HH:mm:ss");
+    const usernameArrays = users.map(user => user.name);
+    const findMessage = await db.collection("messages").find({ _id: new ObjectId(ID_DA_MENSAGEM)}).toArray()
+
+    console.log(findMessage)
+
+    if(findMessage[0].from !== user ){
+        return res.sendStatus(401)
+     }
+     if (findMessage.length === 0) {
+       return res.sendStatus(404)
+     }
+     if (validationToText.error || validationType.error || !(usernameArrays.includes(user))) {
+        return res.status(422).send()
+     }
+
+     try {
+         const update = await db.collection("messages").updateOne({ _id: new ObjectId(ID_DA_MENSAGEM) }, { $set: { text, time: reqTime } })
+
+        res.status(200).send(update)
+    } catch {
+        res.status(500).send()
+    }
+    
+})
 
 app.listen(process.env.SERVER_PORT, () => {
     console.log("Servidor ON")
