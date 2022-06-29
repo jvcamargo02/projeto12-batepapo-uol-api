@@ -26,7 +26,7 @@ const TextAndToSchema = joi.object({
 });
 
 const typeSchema = joi.object({
-    type: joi.string().valid('message' || 'private_message').required()
+    type: joi.string().valid('message', 'private_message').required()
 })
 
 
@@ -117,11 +117,14 @@ app.post("/messages", async (req, res) => {
     const validationType = typeSchema.validate({ type })
     const reqTime = dayjs().locale('pt-br').format("HH:mm:ss");
     const usernameArrays = users.map(user => user.name);
-
+ 
     if (validationToText.error || validationType.error || !(usernameArrays.includes(user))) {
+/*         console.log(validationToText.error.details) */
+        console.log(validationType.error.details)
+        console.log(usernameArrays.includes(user))
         return res.status(422).send()
     }
-
+ 
     try {
 
         await db.collection("messages").insertOne({
@@ -158,7 +161,7 @@ app.get("/messages", async (req, res) => {
 
         for (let i = messageNumber; i > printMessagesNumber; i = i - 1) {
 
-            if ((messages[i - 1].to === "Todos") || (messages[i - 1].to === user)) {
+            if ((messages[i - 1].to === "Todos") || (messages[i - 1].to === user) || (messages[i - 1].from === user)) {
                 printMessages.unshift(messages[i - 1])
             }
         }
