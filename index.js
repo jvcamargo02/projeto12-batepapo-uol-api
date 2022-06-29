@@ -29,9 +29,7 @@ const typeSchema = joi.object({
     type: joi.string().valid('message' || 'private_message').required()
 })
 
-const fromSchema = joi.object({
-    user: joi.string().valid('a', 'b').required()
-})
+
 
 
 
@@ -104,6 +102,8 @@ app.get("/participants", async (req, res) => {
     const users = await db.collection("users").find().toArray()
 
     res.status(200).send(users)
+
+    dataBaseDisconnect()
 })
 
 app.post("/messages", async (req, res) => {
@@ -117,19 +117,10 @@ app.post("/messages", async (req, res) => {
     const validationType = typeSchema.validate({ type })
     const reqTime = dayjs().locale('pt-br').format("HH:mm:ss");
     const usernameArrays = users.map(user => user.name);
-    const validateFrom = fromSchema.validate({ user });
 
-
-/*      const array = joi.array().items(joi.string().valid("fas"));
-    const validateFrom = await array.validateAsync(usernameArrays); */ 
-
-    if (validationToText.error || validationType.error) {
+    if (validationToText.error || validationType.error || !(usernameArrays.includes(user))) {
         return res.status(422).send()
     }
-
-    if (validateFrom.error) {
-        console.log(validateFrom.error.details)
-    } 
 
     try {
 
@@ -142,13 +133,13 @@ app.post("/messages", async (req, res) => {
         })
 
         res.status(201).send()
+        dataBaseDisconnect()
+
     } catch {
         res.sendStatus(500)
+        dataBaseDisconnect()
+
     }
-
-    dataBaseDisconnect()
-
-
 })
 
 app.get("/messages", async (req, res) => {
