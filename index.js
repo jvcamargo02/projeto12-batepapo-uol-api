@@ -91,8 +91,6 @@ app.post("/participants", async (req, res) => {
         res.sendStatus(500)
     }
 
-    dataBaseDisconnect()
-
 })
 
 app.get("/participants", async (req, res) => {
@@ -103,7 +101,6 @@ app.get("/participants", async (req, res) => {
 
     res.status(200).send(users)
 
-    dataBaseDisconnect()
 })
 
 app.post("/messages", async (req, res) => {
@@ -117,15 +114,14 @@ app.post("/messages", async (req, res) => {
     const validationType = typeSchema.validate({ type })
     const reqTime = dayjs().locale('pt-br').format("HH:mm:ss");
     const usernameArrays = users.map(user => user.name);
- 
-    if (validationToText.error || validationType.error || !(usernameArrays.includes(user))) {
-/*         console.log(validationToText.error.details) */
-        console.log(validationType.error.details)
-        console.log(usernameArrays.includes(user))
-        return res.status(422).send()
-    }
- 
+
+
+
     try {
+
+        if (validationToText.error || validationType.error || !(usernameArrays.includes(user))) {
+            return res.status(422).send()
+        }
 
         await db.collection("messages").insertOne({
             from: user,
@@ -136,11 +132,11 @@ app.post("/messages", async (req, res) => {
         })
 
         res.status(201).send()
-        dataBaseDisconnect()
+
 
     } catch {
         res.sendStatus(500)
-        dataBaseDisconnect()
+
 
     }
 })
@@ -161,21 +157,40 @@ app.get("/messages", async (req, res) => {
 
         for (let i = messageNumber; i > printMessagesNumber; i = i - 1) {
 
-            if ((messages[i - 1].to === "Todos") || (messages[i - 1].to === user) || (messages[i - 1].from === user)) {
+            if ((messages[i - 1].type === "message") || (messages[i - 1].to === user) || (messages[i - 1].from === user)) {
                 printMessages.unshift(messages[i - 1])
             }
         }
-
-        /* falta conferir se o usuário pode ou não receber essa mensagem */
-
 
         return res.send(printMessages)
     }
 
     res.send(messages)
 
-    dataBaseDisconnect()
 })
+
+app.post("/status", async (req, res) => {
+
+    dataBaseConnect()
+
+    const { user } = req.headers
+    const userFind = await db.collection("users").find({
+        name: user}).toArray()
+
+    if (userFind.length === 0) {
+        res.status(404).send()
+    }
+
+    try {
+        const userId = userFind[0]._id
+        const update = await db.collection("users").updateOne({ _id: userId }, { $set: { lastStatus: Date.now() }  })
+
+        res.status(200).send(update)
+    } catch {
+        res.status(500).send()
+    }
+})
+
 
 app.listen(process.env.SERVER_PORT, () => {
     console.log("Servidor ON")
